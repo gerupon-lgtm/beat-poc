@@ -7,7 +7,7 @@
     lookAheadSec: 2.1,
     perfectMs: 55,
     goodMs: 120,
-    enemyMaxHp: 160,
+    clearHpRatio: 0.7,
   };
 
   const SONG_DEFINITIONS = Object.freeze({
@@ -325,13 +325,27 @@
     return "スコア " + score + " / " + combo + "コンボ";
   }
 
+  function formatTimeoutMessage(enemyHp, enemyMaxHp) {
+    return "残りHP " + enemyHp + " / " + enemyMaxHp;
+  }
+
+  function calculateEnemyMaxHp(chart, ratio) {
+    const perfectDamage = chart.reduce(
+      (total, note) => total + 18 + (note.accent ? 6 : 0),
+      0
+    );
+    return Math.max(1, Math.ceil(perfectDamage * ratio));
+  }
+
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
       judgeHit,
       buildNoteChart,
       buildHintEventsForBeat,
       buildHintCue,
+      calculateEnemyMaxHp,
       formatDefeatMessage,
+      formatTimeoutMessage,
       beatSeconds,
       normalizeBpm,
       countInDuration,
@@ -366,7 +380,8 @@
     countTimers: [],
     songEndTimer: 0,
     activeSources: new Set(),
-    enemyHp: SETTINGS.enemyMaxHp,
+    enemyMaxHp: 1,
+    enemyHp: 1,
     combo: 0,
     score: 0,
     songId: "straight",
@@ -682,9 +697,13 @@
     state.noteEls.clear();
     $("attack-btn").disabled = true;
     $("start-btn").disabled = false;
-    $("judge").textContent = "曲終了";
+    $("judge").textContent = "時間切れ";
     $("judge").className = "judge";
-    addLog("曲終了。戦闘開始で最初からやり直せます。");
+    $("battle-result-title").textContent = "時間切れ";
+    $("battle-result-detail").textContent = formatTimeoutMessage(state.enemyHp, state.enemyMaxHp);
+    $("battle-result").className = "battle-result timeout";
+    $("battle-result").hidden = false;
+    addLog("時間切れ。敵を撃破できなかった");
   }
 
   function scheduleSongEnd() {
@@ -703,13 +722,15 @@
     });
     state.noteEls.clear();
     state.nextBeat = 0;
-    state.enemyHp = SETTINGS.enemyMaxHp;
+    state.enemyMaxHp = calculateEnemyMaxHp(state.chart, SETTINGS.clearHpRatio);
+    state.enemyHp = state.enemyMaxHp;
     state.combo = 0;
     state.score = 0;
     $("notes").innerHTML = "";
     $("judge").textContent = "READY";
     $("judge").className = "judge";
     $("count-in").hidden = true;
+    $("battle-result").className = "battle-result";
     $("battle-result").hidden = true;
     $("log").innerHTML = "";
     updateStats();
@@ -723,7 +744,7 @@
 
   function updateStats() {
     $("enemy-hp").textContent = String(Math.max(0, state.enemyHp));
-    $("enemy-hp-fill").style.width = Math.max(0, state.enemyHp / SETTINGS.enemyMaxHp * 100) + "%";
+    $("enemy-hp-fill").style.width = Math.max(0, state.enemyHp / state.enemyMaxHp * 100) + "%";
     $("combo").textContent = String(state.combo);
     $("score").textContent = String(state.score);
   }
@@ -772,7 +793,9 @@
         stopPlayback();
         $("attack-btn").disabled = true;
         $("start-btn").disabled = false;
+        $("battle-result-title").textContent = "撃破！";
         $("battle-result-detail").textContent = formatDefeatMessage(state.score, state.combo);
+        $("battle-result").className = "battle-result victory";
         $("battle-result").hidden = false;
       }
     }

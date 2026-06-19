@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>リズム戦闘 PoC</title>
-  <link rel="stylesheet" href="./css/rhythm-battle-poc.css?v=8">
+  <link rel="stylesheet" href="./css/rhythm-battle-poc.css?v=9">
 </head>
 <body>
   <main class="poc-shell">
@@ -57,7 +57,7 @@
           <div class="hp-line">
             <span>HP</span>
             <div class="hp-bar"><div id="enemy-hp-fill"></div></div>
-            <strong id="enemy-hp">160</strong>
+            <strong id="enemy-hp">420</strong>
           </div>
         </div>
       </div>
@@ -72,7 +72,7 @@
         <div id="notes" class="notes"></div>
         <div id="count-in" class="count-in" aria-live="assertive" hidden></div>
         <div id="battle-result" class="battle-result" aria-live="assertive" hidden>
-          <strong>撃破！</strong>
+          <strong id="battle-result-title">撃破！</strong>
           <span id="battle-result-detail"></span>
         </div>
       </div>
@@ -94,6 +94,6 @@
     </section>
   </main>
 
-  <script src="./js/rhythm-battle-poc.js?v=12"></script>
+  <script src="./js/rhythm-battle-poc.js?v=13"></script>
 </body>
 </html>
