@@ -12,6 +12,7 @@
   };
 
   const CALIBRATION_STORAGE_KEY = "rhythmBattleTimingCalibration";
+  const BASS_FILTER_FREQUENCY = 700;
 
   const SONG_DEFINITIONS = Object.freeze({
     straight: Object.freeze({
@@ -208,9 +209,9 @@
       const harmony = JAZZ_TURNAROUND[formBar % JAZZ_TURNAROUND.length];
       const bassSemitone = JAZZ_RUNNING_BASS[formBar][formBeatInBar];
       const bassFrequency = harmony.bassRoot * Math.pow(2, bassSemitone / 12);
-      events.push(bassEvent(0, bassFrequency, 0.84, 0.155));
+      events.push(bassEvent(0, bassFrequency, 0.84, 0.2));
       if (formBeatInBar === 0) {
-        events.push(pianoEvent(0, JAZZ_PIANO_VOICINGS[formBar], 3.8, 0.038));
+        events.push(pianoEvent(0, JAZZ_PIANO_VOICINGS[formBar], 3.8, 0.075));
       }
       return events;
     }
@@ -319,8 +320,8 @@
       frequency: Number(frequency.toFixed(2)),
       durationSec: 0.11,
       clickDurationSec: 0.025,
-      tonePeak: 0.26,
-      clickPeak: 0.22,
+      tonePeak: 0.075,
+      clickPeak: 0.045,
     };
   }
 
@@ -375,6 +376,14 @@
     return "調整 " + (offsetMs > 0 ? "+" : "") + offsetMs + "ms";
   }
 
+  function buildBassPartials(peak) {
+    return [
+      { ratio: 1, peak, durationRatio: 1 },
+      { ratio: 2, peak: Number((peak * 0.36).toFixed(6)), durationRatio: 0.68 },
+      { ratio: 3, peak: Number((peak * 0.12).toFixed(6)), durationRatio: 0.46 },
+    ];
+  }
+
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
       judgeHit,
@@ -387,6 +396,8 @@
       applyTimingOffset,
       parseCalibrationRecord,
       formatCalibrationLabel,
+      buildBassPartials,
+      BASS_FILTER_FREQUENCY,
       formatDefeatMessage,
       formatTimeoutMessage,
       beatSeconds,
@@ -714,14 +725,11 @@
     const duration = event.durationBeats * beatSeconds(SETTINGS.bpm);
     const filter = audio.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.setValueAtTime(420, time);
+    filter.frequency.setValueAtTime(BASS_FILTER_FREQUENCY, time);
     filter.Q.value = 0.8;
     filter.connect(state.master);
 
-    [
-      { ratio: 1, peak: event.peak, durationRatio: 1 },
-      { ratio: 2, peak: event.peak * 0.2, durationRatio: 0.62 },
-    ].forEach((partial) => {
+    buildBassPartials(event.peak).forEach((partial) => {
       const osc = audio.createOscillator();
       const g = envGain(audio, time, partial.peak, duration * partial.durationRatio);
       osc.type = "sine";
