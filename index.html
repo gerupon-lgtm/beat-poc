@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>リズム戦闘 PoC</title>
-  <link rel="stylesheet" href="./css/rhythm-battle-poc.css?v=9">
+  <link rel="stylesheet" href="./css/rhythm-battle-poc.css?v=10">
 </head>
 <body>
   <main class="poc-shell">
@@ -45,6 +45,7 @@
         </label>
         <button id="start-btn" class="start-btn">戦闘開始</button>
       </div>
+      <button id="calibration-btn" class="calibration-btn" type="button">タイミング調整</button>
     </section>
 
     <section class="battle-card">
@@ -71,6 +72,10 @@
         <div class="hit-line"></div>
         <div id="notes" class="notes"></div>
         <div id="count-in" class="count-in" aria-live="assertive" hidden></div>
+        <div id="calibration-panel" class="calibration-panel" aria-live="assertive" hidden>
+          <strong>タイミング調整</strong>
+          <span id="calibration-status">音に合わせて「こうげき」をタップ</span>
+        </div>
         <div id="battle-result" class="battle-result" aria-live="assertive" hidden>
           <strong id="battle-result-title">撃破！</strong>
           <span id="battle-result-detail"></span>
@@ -83,7 +88,7 @@
 
     <section class="meter-card">
       <div><span>BPM</span><strong id="bpm-label">126</strong></div>
-      <div><span>判定</span><strong>±55ms / ±120ms</strong></div>
+      <div><span>判定</span><strong>±80ms / ±180ms</strong></div>
       <div><span>コンボ</span><strong id="combo">0</strong></div>
       <div><span>スコア</span><strong id="score">0</strong></div>
     </section>
@@ -94,6 +99,6 @@
     </section>
   </main>
 
-  <script src="./js/rhythm-battle-poc.js?v=13"></script>
+  <script src="./js/rhythm-battle-poc.js?v=14"></script>
 </body>
 </html>

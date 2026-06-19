@@ -5,10 +5,13 @@
     bpm: 126,
     bars: 8,
     lookAheadSec: 2.1,
-    perfectMs: 55,
-    goodMs: 120,
+    perfectMs: 80,
+    goodMs: 180,
     clearHpRatio: 0.7,
+    calibrationVersion: 1,
   };
+
+  const CALIBRATION_STORAGE_KEY = "rhythmBattleTimingCalibration";
 
   const SONG_DEFINITIONS = Object.freeze({
     straight: Object.freeze({
@@ -337,6 +340,41 @@
     return Math.max(1, Math.ceil(perfectDamage * ratio));
   }
 
+  function calculateEventAudioTime(audioCurrentTime, performanceNowMs, eventTimeStampMs) {
+    const elapsedMs = performanceNowMs - eventTimeStampMs;
+    if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs > 1000) return audioCurrentTime;
+    return audioCurrentTime - elapsedMs / 1000;
+  }
+
+  function calculateCalibrationOffset(samples) {
+    if (!samples.length) return 0;
+    const sorted = [...samples].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2
+      ? sorted[middle]
+      : (sorted[middle - 1] + sorted[middle]) / 2;
+    return Math.max(-250, Math.min(250, Math.round(median)));
+  }
+
+  function applyTimingOffset(songTime, offsetMs) {
+    return songTime - offsetMs / 1000;
+  }
+
+  function parseCalibrationRecord(value, version) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed.version !== version || !Number.isFinite(parsed.offsetMs)) return null;
+      return { version: parsed.version, offsetMs: parsed.offsetMs };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function formatCalibrationLabel(hasCalibration, offsetMs) {
+    if (!hasCalibration) return "タイミング調整";
+    return "調整 " + (offsetMs > 0 ? "+" : "") + offsetMs + "ms";
+  }
+
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
       judgeHit,
@@ -344,6 +382,11 @@
       buildHintEventsForBeat,
       buildHintCue,
       calculateEnemyMaxHp,
+      calculateEventAudioTime,
+      calculateCalibrationOffset,
+      applyTimingOffset,
+      parseCalibrationRecord,
+      formatCalibrationLabel,
       formatDefeatMessage,
       formatTimeoutMessage,
       beatSeconds,
@@ -387,6 +430,13 @@
     songId: "straight",
     patternId: "basic",
     hintEnabled: true,
+    calibrationOffsetMs: 0,
+    hasCalibration: false,
+    calibrating: false,
+    calibrationExpectedTimes: [],
+    calibrationUsed: new Set(),
+    calibrationSamples: [],
+    calibrationTimers: [],
   };
 
   function ensureAudio() {
@@ -507,6 +557,119 @@
     trackSource(src);
     src.start(time);
     playTone(time, cue.frequency, cue.durationSec, "triangle", cue.tonePeak);
+  }
+
+  function clearCalibrationTimers() {
+    for (const timer of state.calibrationTimers) clearTimeout(timer);
+    state.calibrationTimers = [];
+  }
+
+  function updateCalibrationButton() {
+    const button = $("calibration-btn");
+    button.textContent = formatCalibrationLabel(state.hasCalibration, state.calibrationOffsetMs);
+    button.classList.toggle("pending", !state.hasCalibration);
+  }
+
+  function loadCalibration() {
+    let record = null;
+    try {
+      record = parseCalibrationRecord(
+        localStorage.getItem(CALIBRATION_STORAGE_KEY),
+        SETTINGS.calibrationVersion
+      );
+    } catch (_) {
+      // Storage may be unavailable in private browsing.
+    }
+    state.calibrationOffsetMs = record ? record.offsetMs : 0;
+    state.hasCalibration = Boolean(record);
+    updateCalibrationButton();
+  }
+
+  function saveCalibration(offsetMs) {
+    try {
+      localStorage.setItem(CALIBRATION_STORAGE_KEY, JSON.stringify({
+        version: SETTINGS.calibrationVersion,
+        offsetMs,
+      }));
+    } catch (_) {
+      // The value remains active for this session if storage is unavailable.
+    }
+  }
+
+  function finishCalibration() {
+    clearCalibrationTimers();
+    stopTrackedSources(state.activeSources);
+    const enoughSamples = state.calibrationSamples.length >= 5;
+    state.calibrating = false;
+    $("attack-btn").disabled = true;
+    $("start-btn").disabled = false;
+    $("calibration-btn").disabled = false;
+    if (enoughSamples) {
+      state.calibrationOffsetMs = calculateCalibrationOffset(state.calibrationSamples);
+      state.hasCalibration = true;
+      saveCalibration(state.calibrationOffsetMs);
+      $("calibration-status").textContent = "調整完了: " +
+        (state.calibrationOffsetMs > 0 ? "+" : "") + state.calibrationOffsetMs + "ms";
+      updateCalibrationButton();
+    } else {
+      $("calibration-status").textContent = "計測不足です。もう一度お試しください";
+    }
+    state.calibrationTimers.push(setTimeout(() => {
+      $("calibration-panel").hidden = true;
+    }, 1800));
+  }
+
+  function recordCalibrationTap(event) {
+    const inputTime = calculateEventAudioTime(
+      state.audio.currentTime,
+      performance.now(),
+      event.timeStamp
+    );
+    let nearestIndex = -1;
+    let nearestDiffMs = Infinity;
+    state.calibrationExpectedTimes.forEach((expected, index) => {
+      if (state.calibrationUsed.has(index)) return;
+      const diffMs = (inputTime - expected) * 1000;
+      if (Math.abs(diffMs) < Math.abs(nearestDiffMs)) {
+        nearestIndex = index;
+        nearestDiffMs = diffMs;
+      }
+    });
+    if (nearestIndex < 0 || Math.abs(nearestDiffMs) > 300) return;
+    state.calibrationUsed.add(nearestIndex);
+    if (nearestIndex >= 2) state.calibrationSamples.push(nearestDiffMs);
+    $("calibration-status").textContent = nearestIndex < 2
+      ? "練習 " + (nearestIndex + 1) + " / 2"
+      : "計測 " + state.calibrationSamples.length + " / 8";
+    if (state.calibrationSamples.length >= 8) finishCalibration();
+  }
+
+  async function startCalibration() {
+    const audio = ensureAudio();
+    if (audio.state !== "running") await audio.resume();
+    stopPlayback();
+    clearCalibrationTimers();
+    state.calibrating = true;
+    state.calibrationSamples = [];
+    state.calibrationUsed = new Set();
+    state.calibrationExpectedTimes = [];
+    $("calibration-panel").hidden = false;
+    $("calibration-status").textContent = "2拍練習後、8拍を音に合わせてタップ";
+    $("attack-btn").disabled = false;
+    $("start-btn").disabled = true;
+    $("calibration-btn").disabled = true;
+    const interval = 0.6;
+    const firstTime = audio.currentTime + 1;
+    const cue = { frequency: 880, durationSec: 0.11, clickDurationSec: 0.025, tonePeak: 0.3, clickPeak: 0.24 };
+    for (let index = 0; index < 10; index += 1) {
+      const time = firstTime + index * interval;
+      state.calibrationExpectedTimes.push(time);
+      playHintCue(time, cue);
+    }
+    state.calibrationTimers.push(setTimeout(
+      finishCalibration,
+      (firstTime + 10 * interval - audio.currentTime) * 1000
+    ));
   }
 
   function playBrush(time, strong) {
@@ -759,6 +922,13 @@
     return state.audio.currentTime - state.startTime;
   }
 
+  function inputSongTime(event) {
+    const audioTime = event
+      ? calculateEventAudioTime(state.audio.currentTime, performance.now(), event.timeStamp)
+      : state.audio.currentTime;
+    return applyTimingOffset(audioTime - state.startTime, state.calibrationOffsetMs);
+  }
+
   function findNearestNote(now) {
     let best = null;
     for (const note of state.chart) {
@@ -769,9 +939,14 @@
     return best;
   }
 
-  function attack() {
+  function attack(event) {
+    if (event) event.preventDefault();
+    if (state.calibrating) {
+      recordCalibrationTap(event);
+      return;
+    }
     if (!state.running || state.countingIn) return;
-    const nearest = findNearestNote(currentSongTime());
+    const nearest = findNearestNote(inputSongTime(event));
     if (!nearest) return;
     const result = judgeHit(nearest.diffMs, SETTINGS);
     if (shouldConsumeNote(nearest.diffMs, SETTINGS)) {
@@ -870,7 +1045,8 @@
     $("bpm-label").textContent = String(SETTINGS.bpm);
     $("bpm-input").value = String(SETTINGS.bpm);
     $("start-btn").addEventListener("click", start);
-    $("attack-btn").addEventListener("click", attack);
+    $("attack-btn").addEventListener("pointerdown", attack);
+    $("calibration-btn").addEventListener("click", startCalibration);
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space") {
         e.preventDefault();
@@ -878,6 +1054,7 @@
       }
     });
     resetBattle();
+    loadCalibration();
   }
 
   window.addEventListener("DOMContentLoaded", bind);
