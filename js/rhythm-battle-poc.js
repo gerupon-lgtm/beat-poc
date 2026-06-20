@@ -158,6 +158,16 @@
     ];
   }
 
+  function supportsVibration(navigatorObject) {
+    return Boolean(navigatorObject && typeof navigatorObject.vibrate === "function");
+  }
+
+  function calculateHapticDelayMs(targetAudioTime, currentAudioTime, maxLateMs = 80) {
+    const deltaMs = (targetAudioTime - currentAudioTime) * 1000;
+    if (!Number.isFinite(deltaMs) || deltaMs < -maxLateMs) return null;
+    return Math.max(0, Math.round(deltaMs * 1000) / 1000);
+  }
+
   function calculateVisualBeatState(songTime, bpm, beatsPerBar = 4, pulseSeconds = 0.12) {
     if (!Number.isFinite(songTime) || songTime < 0) {
       return { beatIndex: -1, progress: 0, pulse: false };
@@ -472,6 +482,8 @@
       countInDuration,
       calculateSongStartTime,
       buildCountInEvents,
+      supportsVibration,
+      calculateHapticDelayMs,
       calculateVisualBeatState,
       isDebugMode,
       calculateClockDriftMs,
@@ -601,6 +613,8 @@
     songId: "straight",
     patternId: "basic",
     hintEnabled: true,
+    hapticEnabled: false,
+    hapticTimers: new Set(),
     calibrationOffsetMs: 0,
     hasCalibration: false,
     calibrating: false,
@@ -671,11 +685,46 @@
     clearTimeout(state.songEndTimer);
     cancelAnimationFrame(state.raf);
     clearCountTimers();
+    clearHapticTimers();
     stopTrackedSources(state.activeSources);
     state.scheduler = 0;
     state.songEndTimer = 0;
     state.raf = 0;
     resetVisualBeatGuide();
+  }
+
+  function clearHapticTimers() {
+    for (const timer of state.hapticTimers) clearTimeout(timer);
+    state.hapticTimers.clear();
+    if (!supportsVibration(window.navigator)) return;
+    try {
+      navigator.vibrate(0);
+    } catch (_) {
+      // Vibration is optional and must never stop battle cleanup.
+    }
+  }
+
+  function scheduleHaptic(audioTime) {
+    if (!state.hapticEnabled || !supportsVibration(window.navigator)) return false;
+    const delayMs = calculateHapticDelayMs(audioTime, state.audio.currentTime);
+    if (delayMs === null) return false;
+    const timer = setTimeout(() => {
+      state.hapticTimers.delete(timer);
+      const currentDelay = calculateHapticDelayMs(audioTime, state.audio.currentTime);
+      if (
+        !state.running ||
+        !state.hapticEnabled ||
+        document.visibilityState !== "visible" ||
+        currentDelay === null
+      ) return;
+      try {
+        navigator.vibrate(15);
+      } catch (_) {
+        // Unsupported hardware or OS policy must not affect gameplay.
+      }
+    }, delayMs);
+    state.hapticTimers.add(timer);
+    return true;
   }
 
   function cancelVisualAnimations() {
@@ -999,6 +1048,7 @@
     for (const event of buildCountInEvents()) {
       const time = countInStartTime + event.beatOffset * beat;
       playCountTone(time, event.label);
+      scheduleHaptic(time);
       const delayMs = Math.max(0, (time - state.audio.currentTime) * 1000);
       state.countTimers.push(setTimeout(() => {
         countEl.textContent = String(event.label);
@@ -1066,6 +1116,7 @@
     ) {
       const beatTime = state.startTime + state.nextBeat * beat;
       scheduleSongBeat(state.songId, state.nextBeat, beatTime);
+      scheduleHaptic(beatTime);
       if (state.hintEnabled) {
         const cue = buildHintCue(state.songId, state.nextBeat);
         for (const hint of buildHintEventsForBeat(state.chart, state.nextBeat)) {
@@ -1406,6 +1457,7 @@
     state.songId = SONG_DEFINITIONS[$("song-select").value] ? $("song-select").value : "straight";
     state.patternId = CHART_DEFINITIONS[$("pattern-select").value] ? $("pattern-select").value : "basic";
     state.hintEnabled = $("hint-toggle").checked;
+    state.hapticEnabled = supportsVibration(window.navigator) && $("haptic-toggle").checked;
     $("bpm-input").value = String(SETTINGS.bpm);
     $("bpm-label").textContent = String(SETTINGS.bpm);
     resetBattle();
@@ -1447,6 +1499,13 @@
     state.compositorVisuals = prefersCompositorVisuals(window.location.search) &&
       typeof Element !== "undefined" &&
       typeof Element.prototype.animate === "function";
+    const hapticSupported = supportsVibration(window.navigator);
+    $("haptic-toggle").disabled = !hapticSupported;
+    if (!hapticSupported) {
+      $("haptic-toggle").checked = false;
+      $("haptic-label").textContent = "振動×";
+      $("haptic-toggle").title = "このブラウザは振動に対応していません";
+    }
     $("bpm-label").textContent = String(SETTINGS.bpm);
     $("bpm-input").value = String(SETTINGS.bpm);
     $("start-btn").addEventListener("click", start);

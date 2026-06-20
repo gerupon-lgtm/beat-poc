@@ -119,14 +119,15 @@ h1 {
 .start-controls {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 72px 52px 90px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 72px 52px 52px 90px;
   align-items: end;
   gap: 8px;
 }
 
 .bpm-control,
 .poc-select-control,
-.hint-control {
+.hint-control,
+.haptic-control {
   display: grid;
   gap: 4px;
   color: var(--gold);
@@ -135,7 +136,8 @@ h1 {
   letter-spacing: 0.08em;
 }
 
-.hint-control input {
+.hint-control input,
+.haptic-control input {
   appearance: none;
   width: 52px;
   height: 42px;
@@ -147,7 +149,8 @@ h1 {
   position: relative;
 }
 
-.hint-control input::before {
+.hint-control input::before,
+.haptic-control input::before {
   content: "OFF";
   position: absolute;
   inset: 3px auto 3px 3px;
@@ -161,19 +164,22 @@ h1 {
   font-weight: 900;
 }
 
-.hint-control input:checked {
+.hint-control input:checked,
+.haptic-control input:checked {
   background: rgba(34, 211, 238, 0.3);
   border-color: #67e8f9;
 }
 
-.hint-control input:checked::before {
+.hint-control input:checked::before,
+.haptic-control input:checked::before {
   content: "ON";
   inset: 3px 3px 3px auto;
   color: #082f49;
   background: #67e8f9;
 }
 
-.hint-control input:focus-visible {
+.hint-control input:focus-visible,
+.haptic-control input:focus-visible {
   outline: 3px solid rgba(250, 204, 21, 0.9);
   outline-offset: 2px;
 }
@@ -691,27 +697,31 @@ h1 {
     width: 100%;
     margin-top: 4px;
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.75fr) 52px 44px 68px;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.75fr) 52px 44px 44px 68px;
     gap: 4px;
     align-items: end;
   }
 
   .bpm-control,
   .poc-select-control,
-  .hint-control {
+  .hint-control,
+  .haptic-control {
     min-width: 0;
     gap: 2px;
     font-size: 0.58rem;
     letter-spacing: 0.02em;
   }
 
-  .hint-control input {
+  .hint-control input,
+  .haptic-control input {
     width: 44px;
     height: 32px;
   }
 
   .hint-control input::before,
-  .hint-control input:checked::before {
+  .hint-control input:checked::before,
+  .haptic-control input::before,
+  .haptic-control input:checked::before {
     width: 27px;
     font-size: 0.5rem;
   }

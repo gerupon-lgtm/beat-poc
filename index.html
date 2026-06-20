@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>リズム戦闘 PoC</title>
-  <link rel="stylesheet" href="./css/rhythm-battle-poc.css?v=15">
+  <link rel="stylesheet" href="./css/rhythm-battle-poc.css?v=16">
 </head>
 <body>
   <main class="poc-shell">
@@ -42,6 +42,10 @@
         <label class="hint-control" for="hint-toggle">
           <span>ヒント</span>
           <input id="hint-toggle" type="checkbox" checked>
+        </label>
+        <label class="haptic-control" for="haptic-toggle">
+          <span id="haptic-label">振動</span>
+          <input id="haptic-toggle" type="checkbox" checked>
         </label>
         <button id="start-btn" class="start-btn">戦闘開始</button>
       </div>
@@ -106,6 +110,6 @@
     </section>
   </main>
 
-  <script src="./js/rhythm-battle-poc.js?v=25"></script>
+  <script src="./js/rhythm-battle-poc.js?v=26"></script>
 </body>
 </html>
