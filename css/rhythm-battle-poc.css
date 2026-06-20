@@ -344,6 +344,40 @@ h1 {
   font-weight: 900;
 }
 
+.beat-guide {
+  position: absolute;
+  z-index: 6;
+  left: 10%;
+  right: 10%;
+  bottom: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  pointer-events: none;
+}
+
+.beat-guide-step {
+  height: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.58);
+  border-radius: 999px;
+  background: rgba(51, 65, 85, 0.82);
+  transition:
+    transform 80ms ease-out,
+    background-color 80ms ease-out,
+    box-shadow 80ms ease-out;
+}
+
+.beat-guide-step.active {
+  transform: scaleY(1.5);
+  border-color: #fef08a;
+  background: var(--gold);
+  box-shadow: 0 0 14px rgba(250, 204, 21, 0.88);
+}
+
+.lane.beat-pulse .hit-line {
+  box-shadow: 0 0 30px 7px rgba(250, 204, 21, 0.88);
+}
+
 .count-in {
   position: absolute;
   inset: 0;
@@ -427,10 +461,10 @@ h1 {
 }
 
 .note.phase-head {
-  width: 34px;
-  height: 34px;
-  margin-left: -17px;
-  margin-top: -17px;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -11px;
   border-radius: 6px;
   background: linear-gradient(180deg, #fef3c7, var(--gold));
   border: 3px solid #fff7ae;
@@ -440,10 +474,10 @@ h1 {
 
 .note.phase-offbeat,
 .note.phase-swing {
-  width: 42px;
-  height: 42px;
-  margin-left: -21px;
-  margin-top: -21px;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -11px;
   border-radius: 50%;
 }
 
@@ -462,7 +496,7 @@ h1 {
 .note.phase-swing::after {
   content: "♪";
   color: #2e1065;
-  font-size: 1.25rem;
+  font-size: 0.75rem;
   font-weight: 1000;
 }
 
@@ -470,6 +504,16 @@ h1 {
   outline: 4px solid rgba(255, 255, 255, 0.82);
   outline-offset: 3px;
   box-shadow: 0 0 26px rgba(250, 204, 21, 0.9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beat-guide-step {
+    transition: none;
+  }
+
+  .beat-guide-step.active {
+    transform: none;
+  }
 }
 
 .attack-btn {
