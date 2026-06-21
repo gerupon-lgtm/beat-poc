@@ -9,6 +9,9 @@
     goodMs: 180,
     clearHpRatio: 0.7,
     calibrationVersion: 1,
+    // 判定線(バー)のフラッシュ: true=譜面のタップ時刻(note.time)に同期 / false=従来の4分音符ごと
+    // 従来挙動へ戻す場合は false、または URL に ?hitline=beats を付ける。
+    hitLineFlashByNotes: true,
   };
 
   const CALIBRATION_STORAGE_KEY = "rhythmBattleTimingCalibration";
@@ -1297,13 +1300,27 @@
     });
   }
 
+  function compositorTimelineNow() {
+    return document.timeline && Number.isFinite(document.timeline.currentTime)
+      ? document.timeline.currentTime
+      : performance.now();
+  }
+
+  // 判定線フラッシュのディスパッチャ。SETTINGS.hitLineFlashByNotes で挙動切替。
   function prepareCompositorHitLine(songStartMs) {
+    if (SETTINGS.hitLineFlashByNotes) {
+      prepareCompositorHitLineByNotes(songStartMs);
+    } else {
+      prepareCompositorHitLineByBeats(songStartMs);
+    }
+  }
+
+  // 【従来挙動】4分音符ごとに等間隔フラッシュ(復元用に保持)。
+  function prepareCompositorHitLineByBeats(songStartMs) {
     const flash = $("lane").querySelector(".hit-line-flash");
     const beatMs = beatSeconds(SETTINGS.bpm) * 1000;
     const pulseOffset = Math.min(0.5, 120 / beatMs);
-    const timelineNow = document.timeline && Number.isFinite(document.timeline.currentTime)
-      ? document.timeline.currentTime
-      : performance.now();
+    const timelineNow = compositorTimelineNow();
     const animation = flash.animate([
       { transform: "scaleX(1)", opacity: 1, offset: 0 },
       { transform: "scaleX(1)", opacity: 1, offset: pulseOffset * 0.45 },
@@ -1318,6 +1335,30 @@
     });
     animation.startTime = timelineNow;
     state.visualAnimations.push(animation);
+  }
+
+  // 【新挙動】タップすべきタイミング(譜面の各 note.time)に同期して単発フラッシュ。
+  // 各ノーツが判定線へ到達する壁時計 songStartMs + note.time*1000 を起点に、短いパルスを出す。
+  function prepareCompositorHitLineByNotes(songStartMs) {
+    const flash = $("lane").querySelector(".hit-line-flash");
+    const beatMs = beatSeconds(SETTINGS.bpm) * 1000;
+    const flashMs = Math.max(90, Math.min(beatMs * 0.5, 180));
+    const timelineNow = compositorTimelineNow();
+    for (const note of state.chart) {
+      const arriveMs = songStartMs + note.time * 1000;
+      const peak = note.accent ? 0.92 : 1; // アクセントは僅かに弱く区別(任意)
+      const animation = flash.animate([
+        { transform: "scaleX(1)", opacity: peak, offset: 0 },
+        { transform: "scaleX(0.97)", opacity: 0, offset: 1 },
+      ], {
+        duration: flashMs,
+        delay: arriveMs - timelineNow,
+        easing: "ease-out",
+        fill: "none",
+      });
+      animation.startTime = timelineNow;
+      state.visualAnimations.push(animation);
+    }
   }
 
   function finishSong() {
@@ -1583,6 +1624,10 @@
 
   function bind() {
     state.debugEnabled = isDebugMode(window.location.search);
+    // 判定線フラッシュの挙動を URL で切替できる(?hitline=beats で従来挙動へ)
+    if (new URLSearchParams(window.location.search).get("hitline") === "beats") {
+      SETTINGS.hitLineFlashByNotes = false;
+    }
     state.compositorVisuals = prefersCompositorVisuals(window.location.search) &&
       typeof Element !== "undefined" &&
       typeof Element.prototype.animate === "function";
