@@ -1338,7 +1338,15 @@
   }
 
   // 【新挙動】タップすべきタイミング(譜面の各 note.time)に同期して単発フラッシュ。
-  // 各ノーツが判定線へ到達する壁時計 songStartMs + note.time*1000 を起点に、短いパルスを出す。
+  // 各ノーツが判定線へ到達する壁時計 songStartMs + note.time*1000 を起点に短いパルス。
+  // 発光色は落下ノーツに合わせる: 頭=黄 / 裏=水色 / シャッフル裏=紫。
+  // アクセントは明るく(不透明度・発光を強調)。非フラッシュ時の地色は CSS の明るめグレー。
+  const HITLINE_FLASH_COLORS = {
+    head: { color: "#facc15", glow: "rgba(250, 204, 21, 0.95)" },
+    offbeat: { color: "#22d3ee", glow: "rgba(34, 211, 238, 0.95)" },
+    swing: { color: "#c084fc", glow: "rgba(192, 132, 252, 0.95)" },
+  };
+
   function prepareCompositorHitLineByNotes(songStartMs) {
     const flash = $("lane").querySelector(".hit-line-flash");
     const beatMs = beatSeconds(SETTINGS.bpm) * 1000;
@@ -1346,10 +1354,12 @@
     const timelineNow = compositorTimelineNow();
     for (const note of state.chart) {
       const arriveMs = songStartMs + note.time * 1000;
-      const peak = note.accent ? 0.92 : 1; // アクセントは僅かに弱く区別(任意)
+      const c = HITLINE_FLASH_COLORS[note.phase] || HITLINE_FLASH_COLORS.head;
+      const peak = note.accent ? 1 : 0.85; // アクセントは明るく
+      const shadow = (note.accent ? "0 0 42px 12px " : "0 0 30px 7px ") + c.glow;
       const animation = flash.animate([
-        { transform: "scaleX(1)", opacity: peak, offset: 0 },
-        { transform: "scaleX(0.97)", opacity: 0, offset: 1 },
+        { backgroundColor: c.color, boxShadow: shadow, opacity: peak, transform: "scaleX(1)", offset: 0 },
+        { backgroundColor: c.color, boxShadow: shadow, opacity: 0, transform: "scaleX(0.97)", offset: 1 },
       ], {
         duration: flashMs,
         delay: arriveMs - timelineNow,
@@ -1404,6 +1414,7 @@
     $("count-in").hidden = true;
     $("battle-result").className = "battle-result";
     $("battle-result").hidden = true;
+    $("attack-btn").disabled = true; // 停止中は「こうげき」を非活性表示(演奏開始で解除)
     $("log").innerHTML = "";
     resetVisualBeatGuide();
     updateStats();
