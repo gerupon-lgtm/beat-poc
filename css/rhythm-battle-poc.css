@@ -356,9 +356,9 @@ h1 {
   bottom: 56px;
   height: 4px;
   border-radius: 999px;
-  /* 非フラッシュ時の地色は明るめグレー。フラッシュ色は .hit-line-flash 側でノーツ色に同期 */
-  background: #e2e8f0;
-  box-shadow: 0 0 12px rgba(226, 232, 240, 0.5);
+  /* 非フラッシュ時の地色はやや暗めのグレー。フラッシュ色は .hit-line-flash 側でノーツ色に同期 */
+  background: #94a3b8;
+  box-shadow: 0 0 10px rgba(148, 163, 184, 0.45);
 }
 
 .hit-line::before {

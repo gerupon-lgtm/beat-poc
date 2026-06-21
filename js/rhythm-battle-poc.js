@@ -219,6 +219,27 @@
     return performanceNowMs + (audioStartSec - audioNowSec) * 1000;
   }
 
+  // 振動ズレ対策の初期化用: 読み取りギャップ(performance.now の前後差)が
+  // 最も小さい = 最もジャンクの無いサンプルを採用する。
+  function pickTightestSync(samples) {
+    if (!samples || !samples.length) return null;
+    return samples.reduce((best, s) => (s.gapMs < best.gapMs ? s : best), samples[0]);
+  }
+
+  // performance.now ↔ AudioContext.currentTime の対応を素早く複数回測り、
+  // 最も信頼できる1組を返す。演奏開始時に一度だけ呼んで壁時計アンカーを安定させる。
+  function measureAudioWallSync(audio, count) {
+    const n = count || 5;
+    const samples = [];
+    for (let i = 0; i < n; i += 1) {
+      const t0 = performance.now();
+      const a = audio.currentTime;
+      const t1 = performance.now();
+      samples.push({ perfMs: (t0 + t1) / 2, audioSec: a, gapMs: t1 - t0 });
+    }
+    return pickTightestSync(samples);
+  }
+
   function calculateNoteAnimationDelayMs(
     songStartMs,
     noteTimeSec,
@@ -505,6 +526,7 @@
       isCompositorVisualMode,
       prefersCompositorVisuals,
       calculateVisualSongStartMs,
+      pickTightestSync,
       calculateNoteAnimationDelayMs,
       SONG_DEFINITIONS,
       CHART_DEFINITIONS,
@@ -1606,11 +1628,15 @@
     $("start-btn").disabled = true;
     const countInStartTime = audio.currentTime + 0.2;
     state.startTime = calculateSongStartTime(countInStartTime, SETTINGS.bpm, 8);
-    state.visualSongStartMs = calculateVisualSongStartMs(
-      performance.now(),
-      audio.currentTime,
-      state.startTime
-    );
+    // 振動ズレ対策の初期化: 壁時計アンカーをジャンクの少ないサンプルで確定する。
+    // あわせて振動サブシステムをウォームアップ(初回発火の遅延を軽減)。
+    if (state.hapticEnabled) {
+      try { navigator.vibrate(0); } catch (_) { /* 任意機能。失敗してもプレイに影響させない */ }
+    }
+    const wallSync = measureAudioWallSync(audio, 5);
+    state.visualSongStartMs = wallSync
+      ? calculateVisualSongStartMs(wallSync.perfMs, wallSync.audioSec, state.startTime)
+      : calculateVisualSongStartMs(performance.now(), audio.currentTime, state.startTime);
     if (state.compositorVisuals) {
       prepareCompositorNotes(state.visualSongStartMs);
       prepareCompositorBeatGuide(state.visualSongStartMs);
